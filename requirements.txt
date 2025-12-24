@@ -1,0 +1,7 @@
+streamlit
+ebooklib
+beautifulsoup4
+lxml
+httpx
+tenacity
+tiktoken
