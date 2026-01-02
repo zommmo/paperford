@@ -97,20 +97,20 @@ base_url = normalize_base_url(base_url_input)
 
 model = st.sidebar.text_input("Model", value=str(settings.get("model", config.MODEL)))
 temperature = st.sidebar.number_input(
-    "temperature",
+    "temperature（随机性）",
     min_value=0.0,
     max_value=2.0,
     value=float(settings.get("temperature", config.TEMPERATURE)),
     step=0.1,
 )
 batch_size = st.sidebar.number_input(
-    "batch_size",
+    "batch_size（每批条数）",
     min_value=1,
     value=int(settings.get("batch_size", config.BATCH_SIZE)),
     step=1,
 )
 concurrency = st.sidebar.number_input(
-    "concurrency",
+    "concurrency（并发数）",
     min_value=1,
     value=int(settings.get("concurrency", config.CONCURRENCY)),
     step=1,
@@ -130,7 +130,7 @@ for key, val in [
 if settings_changed:
     save_settings(settings)
 
-with st.sidebar.expander("新增/编辑/删除自定义 Provider"):
+with st.sidebar.expander("自定义 Provider 管理"):
     custom_ids = [p["id"] for p in settings.get("custom_providers", [])]
     custom_selection = st.selectbox(
         "选择自定义 Provider",
@@ -204,13 +204,7 @@ with st.sidebar.expander("新增/编辑/删除自定义 Provider"):
         st.success("已删除自定义 Provider。")
 
 # 主区域说明
-st.markdown(
-    """
-    这是一个用于 EPUB 行间双语翻译的 Streamlit 空壳页面。
-
-    阶段进度：MVP-3
-    """
-)
+st.caption("上传 EPUB → 翻译并回填 → 导出双语 EPUB")
 
 uploaded_file = st.file_uploader("上传 EPUB 文件", type=["epub"])
 if st.button("解析预览"):
@@ -262,7 +256,7 @@ if st.button("缓存自检"):
     st.json(result)
 
 
-st.subheader("翻译 EPUB（MVP-4）")
+st.subheader("翻译 EPUB")
 max_blocks = st.number_input(
     "max_blocks（0 表示不限制）",
     min_value=0,
@@ -272,7 +266,7 @@ max_blocks = st.number_input(
 if int(max_blocks) != settings.get("max_blocks"):
     settings["max_blocks"] = int(max_blocks)
     save_settings(settings)
-if st.button("开始翻译（MVP-4）"):
+if st.button("开始翻译"):
     if not uploaded_file:
         st.warning("请先上传 EPUB 文件。")
     elif not api_key:
@@ -287,6 +281,34 @@ if st.button("开始翻译（MVP-4）"):
         if not blocks:
             st.warning("未解析到可翻译的 blocks。")
         else:
+            progress_bar = st.progress(0)
+            progress_info = st.empty()
+
+            def update_progress(processed_count: int, success_count: int, failure_count: int) -> None:
+                total_count = len(blocks)
+                percent = int(processed_count / total_count * 100) if total_count else 0
+                progress_bar.progress(min(percent, 100))
+                elapsed = time.time() - start_ts
+                if processed_count > 0:
+                    remaining = elapsed / processed_count * (total_count - processed_count)
+                    remaining_text = f"{remaining:.2f} 秒"
+                else:
+                    remaining_text = "—"
+                progress_info.markdown(
+                    "\n".join(
+                        [
+                            f"- 总 blocks：{total_count}",
+                            f"- 已处理 blocks：{processed_count}",
+                            f"- 缓存命中数：{cache_hit_count}",
+                            f"- 请求翻译数：{miss_count}",
+                            f"- 已完成翻译数：{success_count}",
+                            f"- 失败数：{failure_count}",
+                            f"- 已耗时：{elapsed:.2f} 秒",
+                            f"- 预计剩余时间：{remaining_text}",
+                        ]
+                    )
+                )
+
             params = {"temperature": float(temperature)}
             # params_json 必须稳定序列化，否则同一参数顺序或空白不同会导致缓存键不一致、命中失效
             params_json = json.dumps(params, sort_keys=True, separators=(",", ":"))
@@ -311,38 +333,47 @@ if st.button("开始翻译（MVP-4）"):
 
             failures = []
             miss_count = len(missing_blocks)
+            processed_blocks = cache_hit_count
+            update_progress(processed_blocks, len(results), len(failures))
             if missing_blocks:
-                fresh_results, failures = asyncio.run(
-                    translate_batches(
-                        missing_blocks,
-                        api_key=api_key,
-                        base_url=base_url,
-                        model=model,
-                        temperature=float(temperature),
-                        batch_size=int(batch_size),
-                        concurrency=int(concurrency),
+                # 为了实时更新进度条，需要把未命中块分批翻译，每批完成即可刷新统计
+                for i in range(0, len(missing_blocks), int(batch_size)):
+                    batch = missing_blocks[i : i + int(batch_size)]
+                    fresh_results, batch_failures = asyncio.run(
+                        translate_batches(
+                            batch,
+                            api_key=api_key,
+                            base_url=base_url,
+                            model=model,
+                            temperature=float(temperature),
+                            batch_size=len(batch),
+                            concurrency=int(concurrency),
+                        )
                     )
-                )
-                results.update(fresh_results)
+                    results.update(fresh_results)
+                    failures.extend(batch_failures)
 
-                now_ts = int(time.time())
-                rows = []
-                for block in missing_blocks:
-                    translation = fresh_results.get(block["block_id"])
-                    if translation is None:
-                        continue
-                    rows.append(
-                        {
-                            "cache_key": block["cache_key"],
-                            "text_hash": block["text_hash"],
-                            "model": model,
-                            "prompt_version": config.PROMPT_VERSION,
-                            "params_json": params_json,
-                            "translation": translation,
-                            "created_at": now_ts,
-                        }
-                    )
-                set_many(config.DB_PATH, rows)
+                    now_ts = int(time.time())
+                    rows = []
+                    for block in batch:
+                        translation = fresh_results.get(block["block_id"])
+                        if translation is None:
+                            continue
+                        rows.append(
+                            {
+                                "cache_key": block["cache_key"],
+                                "text_hash": block["text_hash"],
+                                "model": model,
+                                "prompt_version": config.PROMPT_VERSION,
+                                "params_json": params_json,
+                                "translation": translation,
+                                "created_at": now_ts,
+                            }
+                        )
+                    set_many(config.DB_PATH, rows)
+
+                    processed_blocks += len(batch)
+                    update_progress(processed_blocks, len(results), len(failures))
 
             translated_count = sum(
                 1 for block in blocks if results.get(block["block_id"]) is not None
