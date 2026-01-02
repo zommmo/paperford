@@ -96,11 +96,13 @@ async def translate_batches(
     temperature: float,
     batch_size: int,
     concurrency: int,
+    custom_prompt: str = "",
 ) -> Tuple[Dict[str, str], List[dict]]:
     """
     批量翻译：返回成功映射与失败列表。
     返回 mapping: id -> translation
     failures: {id, reason, text_snippet}
+    custom_prompt: 仅作为风格说明，系统提示保持固定以保证 JSON 解析稳定。
     """
 
     if not blocks:
@@ -115,9 +117,20 @@ async def translate_batches(
     async def handle_batch(batch: List[dict]):
         async with semaphore:
             user_payload = [{"id": b["block_id"], "text": b["text"]} for b in batch]
+            # 系统提示必须固定，用户提示只做风格说明，避免 JSON 约束被覆盖导致解析崩溃
+            user_content_prefix = ""
+            style_prompt = (custom_prompt or "").strip()
+            if style_prompt:
+                user_content_prefix = f"翻译风格要求：{style_prompt}\n\n"
             messages = [
                 {"role": "system", "content": config.SYSTEM_PROMPT},
-                {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
+                {
+                    "role": "user",
+                    "content": (
+                        f"{user_content_prefix}待翻译内容(JSON)："
+                        f"{json.dumps(user_payload, ensure_ascii=False)}"
+                    ),
+                },
             ]
             payload = {
                 "model": model,

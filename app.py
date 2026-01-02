@@ -8,7 +8,7 @@ import time
 import streamlit as st
 
 import config
-from database import bulk_get, init_db, make_cache_key, set_many
+from database import bulk_get, init_db, make_cache_key, make_prompt_hash, set_many
 from epub_processor import extract_blocks, inject_translations
 from provider_tools import fetch_models, health_check, normalize_base_url
 from providers import BUILTIN_PROVIDERS
@@ -30,6 +30,7 @@ def _load_initial_settings() -> dict:
         "batch_size": int(config.BATCH_SIZE),
         "concurrency": int(config.CONCURRENCY),
         "max_blocks": 50,
+        "custom_prompt": "",
     }
     loaded = load_settings()
     if not isinstance(loaded, dict):
@@ -64,6 +65,8 @@ def _empty_job_state() -> dict:
         "base_url": None,
         "miss_count": 0,
         "output_bytes": None,
+        "custom_prompt": "",
+        "prompt_hash": "",
     }
 
 
@@ -84,6 +87,8 @@ if "health_check_result" not in st.session_state:
     st.session_state.health_check_result = None
 if "job" not in st.session_state:
     st.session_state.job = _empty_job_state()
+if "custom_prompt" not in st.session_state:
+    st.session_state.custom_prompt = settings.get("custom_prompt", "")
 
 # 侧边栏配置区域
 st.sidebar.header("配置")
@@ -148,6 +153,14 @@ else:
     model = st.sidebar.text_input(
         "Model", value=str(settings.get("model", config.MODEL)), key="model_input"
     )
+custom_prompt = st.sidebar.text_area(
+    "自定义翻译风格 Prompt（可选）",
+    value=st.session_state.custom_prompt,
+    help="只影响翻译风格，不要写 JSON 格式要求；留空则使用默认风格",
+    key="custom_prompt",
+)
+prompt_hash = make_prompt_hash(custom_prompt)
+st.sidebar.caption(f"prompt_hash: {prompt_hash[:8]}...")
 temperature = st.sidebar.number_input(
     "temperature（随机性）",
     min_value=0.0,
@@ -193,6 +206,7 @@ for key, val in [
     ("temperature", float(temperature)),
     ("batch_size", int(batch_size)),
     ("concurrency", int(concurrency)),
+    ("custom_prompt", custom_prompt),
 ]:
     if settings.get(key) != val:
         settings[key] = val
@@ -303,8 +317,11 @@ if st.button("缓存自检"):
         },
         sort_keys=True,
     )
-    # 缓存键包含模型/提示版本/参数，防止不同配置的翻译结果混用
-    cache_key = make_cache_key(text_hash, model, config.PROMPT_VERSION, params_json)
+    prompt_hash = make_prompt_hash(custom_prompt)
+    # 缓存键包含模型/提示版本/参数/风格提示 hash，防止不同风格串缓存
+    cache_key = make_cache_key(
+        text_hash, model, config.PROMPT_VERSION, params_json, prompt_hash
+    )
     now_ts = int(time.time())
 
     set_many(
@@ -367,11 +384,16 @@ if start_clicked:
             params = {"temperature": float(temperature)}
             # params_json 必须稳定序列化，否则同一参数顺序或空白不同会导致缓存键不一致、命中失效
             params_json = json.dumps(params, sort_keys=True, separators=(",", ":"))
+            prompt_hash = make_prompt_hash(custom_prompt)
 
             for block in blocks:
-                # 缓存键必须包含 model/prompt_version/params_json，避免不同模型或提示参数共享同一缓存
+                # 缓存键必须包含风格提示 hash，否则换风格会串缓存
                 block["cache_key"] = make_cache_key(
-                    block["text_hash"], model, config.PROMPT_VERSION, params_json
+                    block["text_hash"],
+                    model,
+                    config.PROMPT_VERSION,
+                    params_json,
+                    prompt_hash,
                 )
 
             cache_hits = bulk_get(config.DB_PATH, [b["cache_key"] for b in blocks])
@@ -409,6 +431,8 @@ if start_clicked:
                 "base_url": base_url,
                 "miss_count": len(pending_blocks),
                 "output_bytes": None,
+                "custom_prompt": custom_prompt,
+                "prompt_hash": prompt_hash,
             }
             job = st.session_state.job
 
@@ -485,6 +509,7 @@ if job["status"] == "running":
                 temperature=float(temperature_val),
                 batch_size=batch_size_val,
                 concurrency=int(concurrency_val),
+                custom_prompt=job.get("custom_prompt") or "",
             )
         )
         job["results_map"].update(fresh_results)
@@ -606,6 +631,7 @@ if st.button("翻译自测（MVP-3）"):
                 temperature=float(temperature),
                 batch_size=int(batch_size),
                 concurrency=int(concurrency),
+                custom_prompt=custom_prompt,
             )
         )
         st.success("翻译完成")

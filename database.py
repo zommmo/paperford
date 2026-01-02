@@ -22,9 +22,17 @@ def init_db(db_path: str) -> None:
         conn.commit()
 
 
-def make_cache_key(text_hash: str, model: str, prompt_version: str, params_json: str) -> str:
-    # 缓存键包含模型/提示版本/参数，避免不同翻译配置混用缓存数据
-    payload = "|".join([text_hash, model, prompt_version, params_json])
+def make_prompt_hash(custom_prompt: str) -> str:
+    # 无论是否为空都返回固定 hash，保证缓存键稳定可复现
+    normalized = (custom_prompt or "").strip()
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def make_cache_key(
+    text_hash: str, model: str, prompt_version: str, params_json: str, prompt_hash: str
+) -> str:
+    # 缓存键包含模型/提示版本/参数/风格提示 hash，避免不同翻译配置或风格串缓存
+    payload = "|".join([text_hash, model, prompt_version, params_json, prompt_hash])
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
