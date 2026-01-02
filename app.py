@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import json
 import os
+import re
 import time
 
 import streamlit as st
@@ -9,7 +10,46 @@ import streamlit as st
 import config
 from database import bulk_get, init_db, make_cache_key, set_many
 from epub_processor import extract_blocks, inject_translations
+from providers import BUILTIN_PROVIDERS
+from settings_store import load_settings, save_settings
 from translator import translate_batches
+
+
+def normalize_base_url(url: str) -> str:
+    """
+    规范化 Base URL：去掉尾部多余的 /，并消除重复的 /v1，避免请求路径拼接成 /v1/v1/chat。
+    """
+    cleaned = (url or "").strip().rstrip("/")
+    while cleaned.endswith("/v1/v1"):
+        cleaned = cleaned[:-3].rstrip("/")
+    return cleaned
+
+
+def _slugify(name: str) -> str:
+    slug = re.sub(r"[^a-zA-Z0-9_-]+", "-", name.strip().lower()).strip("-")
+    return slug or "custom-provider"
+
+
+def _load_initial_settings() -> dict:
+    defaults = {
+        "custom_providers": [],
+        "selected_provider_id": "openai",
+        "model": config.MODEL,
+        "temperature": float(config.TEMPERATURE),
+        "batch_size": int(config.BATCH_SIZE),
+        "concurrency": int(config.CONCURRENCY),
+        "max_blocks": 50,
+    }
+    loaded = load_settings()
+    if not isinstance(loaded, dict):
+        loaded = {}
+    settings = defaults.copy()
+    settings.update({k: loaded.get(k, v) for k, v in defaults.items()})
+    if isinstance(loaded.get("custom_providers"), list):
+        settings["custom_providers"] = loaded["custom_providers"]
+    else:
+        settings["custom_providers"] = []
+    return settings
 
 
 # 页面标题
@@ -18,30 +58,150 @@ st.title("EPUB 行间双语翻译器")
 # 初始化缓存数据库
 init_db(config.DB_PATH)
 
+if "settings" not in st.session_state:
+    st.session_state.settings = _load_initial_settings()
+settings = st.session_state.settings
+
 # 侧边栏配置区域
 st.sidebar.header("配置")
 api_key = st.sidebar.text_input("API Key", type="password")
-base_url = st.sidebar.text_input("Base URL", value="https://api.openai.com/v1")
-model = st.sidebar.text_input("Model", value=config.MODEL)
+
+custom_providers = settings.get("custom_providers", [])
+all_providers = [dict(p) for p in BUILTIN_PROVIDERS] + [dict(p) for p in custom_providers]
+provider_ids = [p["id"] for p in all_providers]
+provider_labels = {p["id"]: p["name"] for p in all_providers}
+
+if settings.get("selected_provider_id") not in provider_ids:
+    settings["selected_provider_id"] = provider_ids[0] if provider_ids else "openai"
+    save_settings(settings)
+
+selected_provider_id = st.sidebar.selectbox(
+    "Provider",
+    options=provider_ids,
+    index=provider_ids.index(settings["selected_provider_id"])
+    if settings["selected_provider_id"] in provider_ids
+    else 0,
+    format_func=lambda pid: provider_labels.get(pid, pid),
+)
+if selected_provider_id != settings.get("selected_provider_id"):
+    settings["selected_provider_id"] = selected_provider_id
+    save_settings(settings)
+
+selected_provider = next((p for p in all_providers if p["id"] == selected_provider_id), all_providers[0])
+base_url_input = st.sidebar.text_input(
+    "Base URL",
+    value=normalize_base_url(selected_provider["base_url"]),
+    key=f"base_url_{selected_provider_id}",
+)
+base_url = normalize_base_url(base_url_input)
+
+model = st.sidebar.text_input("Model", value=str(settings.get("model", config.MODEL)))
 temperature = st.sidebar.number_input(
     "temperature",
     min_value=0.0,
     max_value=2.0,
-    value=float(config.TEMPERATURE),
+    value=float(settings.get("temperature", config.TEMPERATURE)),
     step=0.1,
 )
 batch_size = st.sidebar.number_input(
     "batch_size",
     min_value=1,
-    value=int(config.BATCH_SIZE),
+    value=int(settings.get("batch_size", config.BATCH_SIZE)),
     step=1,
 )
 concurrency = st.sidebar.number_input(
     "concurrency",
     min_value=1,
-    value=int(config.CONCURRENCY),
+    value=int(settings.get("concurrency", config.CONCURRENCY)),
     step=1,
 )
+
+settings_changed = False
+for key, val in [
+    ("model", model),
+    ("temperature", float(temperature)),
+    ("batch_size", int(batch_size)),
+    ("concurrency", int(concurrency)),
+]:
+    if settings.get(key) != val:
+        settings[key] = val
+        settings_changed = True
+
+if settings_changed:
+    save_settings(settings)
+
+with st.sidebar.expander("新增/编辑/删除自定义 Provider"):
+    custom_ids = [p["id"] for p in settings.get("custom_providers", [])]
+    custom_selection = st.selectbox(
+        "选择自定义 Provider",
+        options=["__new__"] + custom_ids,
+        format_func=lambda pid: "新建" if pid == "__new__" else next(
+            (p["name"] for p in settings.get("custom_providers", []) if p["id"] == pid),
+            pid,
+        ),
+    )
+    selected_custom = (
+        next((p for p in settings.get("custom_providers", []) if p["id"] == custom_selection), None)
+        if custom_selection != "__new__"
+        else None
+    )
+    custom_name = st.text_input(
+        "名称",
+        value=selected_custom["name"] if selected_custom else "",
+        key=f"custom_name_{custom_selection}",
+    )
+    custom_base_url = st.text_input(
+        "Base URL",
+        value=normalize_base_url(selected_custom["base_url"]) if selected_custom else "",
+        key=f"custom_base_{custom_selection}",
+    )
+
+    if st.button("保存/更新自定义 Provider"):
+        normalized_custom_url = normalize_base_url(custom_base_url)
+        if not custom_name.strip():
+            st.warning("请填写名称。")
+        elif not normalized_custom_url:
+            st.warning("请填写 Base URL。")
+        else:
+            base_id = _slugify(custom_name)
+            existing_ids = {p["id"] for p in settings.get("custom_providers", [])} | {
+                p["id"] for p in BUILTIN_PROVIDERS
+            }
+            provider_id = custom_selection if custom_selection != "__new__" else base_id
+            counter = 1
+            while provider_id in existing_ids and provider_id != custom_selection:
+                provider_id = f"{base_id}-{counter}"
+                counter += 1
+
+            new_provider = {
+                "id": provider_id,
+                "name": custom_name.strip(),
+                "base_url": normalized_custom_url,
+            }
+            updated = []
+            replaced = False
+            for p in settings.get("custom_providers", []):
+                if p["id"] == provider_id:
+                    updated.append(new_provider)
+                    replaced = True
+                else:
+                    updated.append(p)
+            if not replaced:
+                updated.append(new_provider)
+
+            settings["custom_providers"] = updated
+            settings["selected_provider_id"] = provider_id
+            save_settings(settings)
+            st.success("已保存自定义 Provider。")
+
+    if custom_selection != "__new__" and st.button("删除自定义 Provider"):
+        settings["custom_providers"] = [
+            p for p in settings.get("custom_providers", []) if p["id"] != custom_selection
+        ]
+        if settings.get("selected_provider_id") == custom_selection:
+            settings["selected_provider_id"] = "openai"
+        save_settings(settings)
+        st.success("已删除自定义 Provider。")
 
 # 主区域说明
 st.markdown(
@@ -106,9 +266,12 @@ st.subheader("翻译 EPUB（MVP-4）")
 max_blocks = st.number_input(
     "max_blocks（0 表示不限制）",
     min_value=0,
-    value=50,
+    value=int(settings.get("max_blocks", 50)),
     step=1,
 )
+if int(max_blocks) != settings.get("max_blocks"):
+    settings["max_blocks"] = int(max_blocks)
+    save_settings(settings)
 if st.button("开始翻译（MVP-4）"):
     if not uploaded_file:
         st.warning("请先上传 EPUB 文件。")
@@ -178,7 +341,7 @@ if st.button("开始翻译（MVP-4）"):
                             "translation": translation,
                             "created_at": now_ts,
                         }
-                )
+                    )
                 set_many(config.DB_PATH, rows)
 
             translated_count = sum(
