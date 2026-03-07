@@ -8,32 +8,32 @@ I18N = {
         "en": "Upload EPUB → Translate & Inject → Export Bilingual EPUB"
     },
     "language_label": {
-        "zh": "Language / 语言",
-        "en": "Language / 语言"
+        "zh": "界面语言",
+        "en": "Language"
     },
     "sidebar_config": {
         "zh": "⚙️ 配置",
         "en": "⚙️ Configuration"
     },
     "api_key": {
-        "zh": "API Key",
+        "zh": "API 密钥",
         "en": "API Key"
     },
     "warn_empty_api_key": {
-        "zh": "请先填写 API Key。",
+        "zh": "请先填写 API 密钥。",
         "en": "Please provide an API Key first."
     },
     "base_url": {
-        "zh": "Base URL",
+        "zh": "接口地址（Base URL）",
         "en": "Base URL"
     },
     "warn_empty_base_url": {
-        "zh": "请先填写 Base URL。",
+        "zh": "请先填写接口地址（Base URL）。",
         "en": "Please provide a Base URL first."
     },
     "fetch_models": {
         "zh": "获取模型列表",
-        "en": "Fetch Resource Models"
+        "en": "Fetch Models"
     },
     "fetch_models_failed": {
         "zh": "获取失败：{}",
@@ -48,7 +48,7 @@ I18N = {
         "en": "🛠️ Advanced Settings"
     },
     "custom_prompt_label": {
-        "zh": "自定义翻译风格 Prompt（可选）",
+        "zh": "自定义翻译风格提示词（可选）",
         "en": "Custom Translation Prompt (Optional)"
     },
     "custom_prompt_help": {
@@ -56,19 +56,19 @@ I18N = {
         "en": "Restricts only translation style, DO NOT include JSON formatting rules; leave blank for default style."
     },
     "temperature_label": {
-        "zh": "Temperature（随机性）",
+        "zh": "温度（随机性）",
         "en": "Temperature (Randomness)"
     },
     "batch_size_label": {
-        "zh": "Batch Size（每批条数）",
+        "zh": "批大小（每批条数）",
         "en": "Batch Size"
     },
     "concurrency_label": {
-        "zh": "Concurrency（并发数）",
+        "zh": "并发数",
         "en": "Concurrency"
     },
     "max_blocks_label": {
-        "zh": "Max Blocks（0 表示不限制）",
+        "zh": "最大文本块数（0 表示不限制）",
         "en": "Max Blocks (0 for unlimited)"
     },
     "test_connection": {
@@ -76,7 +76,7 @@ I18N = {
         "en": "Test Connection"
     },
     "warn_empty_model": {
-        "zh": "请先填写 Model。",
+        "zh": "请先填写模型名称。",
         "en": "Please provide a Model first."
     },
     "connection_ok": {
@@ -92,11 +92,11 @@ I18N = {
         "en": "Connection Details"
     },
     "custom_provider_mgr": {
-        "zh": "自定义 Provider 管理",
+        "zh": "自定义服务商管理",
         "en": "Custom Provider Manager"
     },
     "select_custom_provider": {
-        "zh": "选择自定义 Provider",
+        "zh": "选择自定义服务商",
         "en": "Select Custom Provider"
     },
     "new_provider": {
@@ -108,7 +108,7 @@ I18N = {
         "en": "Name"
     },
     "save_custom_provider": {
-        "zh": "保存/更新自定义 Provider",
+        "zh": "保存/更新自定义服务商",
         "en": "Save/Update Custom Provider"
     },
     "warn_empty_name": {
@@ -116,15 +116,15 @@ I18N = {
         "en": "Please provide a name."
     },
     "saved_custom_provider": {
-        "zh": "已保存自定义 Provider。",
+        "zh": "已保存自定义服务商。",
         "en": "Custom Provider saved successfully."
     },
     "delete_custom_provider": {
-        "zh": "删除自定义 Provider",
+        "zh": "删除自定义服务商",
         "en": "Delete Custom Provider"
     },
     "deleted_custom_provider": {
-        "zh": "已删除自定义 Provider。",
+        "zh": "已删除自定义服务商。",
         "en": "Custom Provider deleted."
     },
     "upload_epub": {
@@ -140,7 +140,7 @@ I18N = {
         "en": "Please upload an EPUB file first."
     },
     "parse_success": {
-        "zh": "✅ 解析完成，blocks 数量：{}",
+        "zh": "✅ 解析完成，文本块数量：{}",
         "en": "✅ Parsing complete, blocks count: {}"
     },
     "preview_top_8": {
@@ -180,7 +180,7 @@ I18N = {
         "en": "Job stopped and cleared (caches are preserved)."
     },
     "warn_no_blocks": {
-        "zh": "未解析到可翻译的 blocks。",
+        "zh": "未解析到可翻译的文本块。",
         "en": "No translatable blocks parsed."
     },
     "pause_requested": {
@@ -188,11 +188,11 @@ I18N = {
         "en": "Pause requested. It will take effect after current batch finishes."
     },
     "stats_total_blocks": {
-        "zh": "总 Blocks",
+        "zh": "总文本块",
         "en": "Total Blocks"
     },
     "stats_processed_blocks": {
-        "zh": "已处理 Blocks",
+        "zh": "已处理文本块",
         "en": "Processed Blocks"
     },
     "stats_cache_hits": {
@@ -240,7 +240,7 @@ I18N = {
         "en": "⬇️ Download Bilingual EPUB"
     },
     "failure_details": {
-        "zh": "失败详情（block_id / 原文前 50 字 / 错误原因）：",
+        "zh": "失败详情（文本块 ID / 原文前 50 字 / 错误原因）：",
         "en": "Failure Details (block_id / first 50 chars / reason):"
     },
     "translate_self_test": {
@@ -256,8 +256,24 @@ I18N = {
         "en": "Failure records:"
     },
     "provider_label": {
-        "zh": "API Providers",
+        "zh": "API 服务商",
         "en": "API Providers"
+    },
+    "prompt_hash_label": {
+        "zh": "提示词哈希",
+        "en": "Prompt Hash"
+    },
+    "col_block_id": {
+        "zh": "文本块 ID",
+        "en": "Block ID"
+    },
+    "col_text_snippet": {
+        "zh": "原文片段",
+        "en": "Text Snippet"
+    },
+    "col_reason": {
+        "zh": "错误原因",
+        "en": "Reason"
     },
     "model_label": {
         "zh": "模型",

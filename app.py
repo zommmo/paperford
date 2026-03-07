@@ -83,6 +83,16 @@ settings = st.session_state.settings
 lang = settings.get("language", "zh")
 
 st.title(get_i18n("app_title", lang))
+st.markdown(
+    """
+    <style>
+    /* 只隐藏 Deploy 按钮，保留 Settings 与侧边栏控制 */
+    .stAppDeployButton { display: none !important; }
+    [data-testid="stAppDeployButton"] { display: none !important; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 if "models" not in st.session_state:
     st.session_state.models = None
 if "models_base_url" not in st.session_state:
@@ -133,7 +143,7 @@ if selected_provider_id != settings.get("selected_provider_id"):
 
 selected_provider = next((p for p in all_providers if p["id"] == selected_provider_id), all_providers[0])
 base_url_input = st.sidebar.text_input(
-    "Base URL",
+    get_i18n("base_url", lang),
     value=normalize_base_url(selected_provider["base_url"]),
     key=f"base_url_{selected_provider_id}",
 )
@@ -177,7 +187,7 @@ with st.sidebar.expander(get_i18n("advanced_settings", lang)):
         key="custom_prompt",
     )
     prompt_hash = make_prompt_hash(custom_prompt)
-    st.caption(f"prompt_hash: {prompt_hash[:8]}...")
+    st.caption(f"{get_i18n('prompt_hash_label', lang)}: {prompt_hash[:8]}...")
     temperature = st.number_input(
         get_i18n("temperature_label", lang),
         min_value=0.0,
@@ -262,7 +272,7 @@ with st.sidebar.expander(get_i18n("custom_provider_mgr", lang)):
         key=f"custom_name_{custom_selection}",
     )
     custom_base_url = st.text_input(
-        "Base URL",
+        get_i18n("base_url", lang),
         value=normalize_base_url(selected_custom["base_url"]) if selected_custom else "",
         key=f"custom_base_{custom_selection}",
     )
@@ -610,9 +620,9 @@ if job["status"] == "done":
         st.table(
             [
                 {
-                    "block_id": f["id"],
-                    "text_snippet": f.get("text_snippet", ""),
-                    "reason": f.get("reason", ""),
+                    get_i18n("col_block_id", lang): f["id"],
+                    get_i18n("col_text_snippet", lang): f.get("text_snippet", ""),
+                    get_i18n("col_reason", lang): f.get("reason", ""),
                 }
                 for f in job["failures"]
             ]
