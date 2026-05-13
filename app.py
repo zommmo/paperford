@@ -19,6 +19,7 @@ from translation_job import (
     empty_job_state,
     ensure_output,
     job_counts,
+    prepare_retry_failed_blocks,
     process_next_batch,
 )
 
@@ -487,6 +488,13 @@ if job["status"] == "paused":
 
 if job["status"] == "done":
     counts = job_counts(job)
+
+    if job.get("failures"):
+        if st.button(get_i18n("retry_failed_blocks", lang)):
+            retry_count = prepare_retry_failed_blocks(job)
+            if retry_count:
+                st.info(get_i18n("retry_failed_started", lang).format(retry_count))
+                st.rerun()
 
     if job.get("output_bytes") is None and job.get("epub_bytes"):
         ensure_output(job)

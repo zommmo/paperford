@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 from typing import Dict, List, Tuple
 
 import httpx
@@ -88,6 +89,111 @@ def _chunk_list(items: List[dict], size: int) -> List[List[dict]]:
     return [items[i : i + size] for i in range(0, len(items), size)]
 
 
+def estimate_token_count(text: str, model: str = "") -> int:
+    try:
+        import tiktoken
+
+        try:
+            encoding = tiktoken.encoding_for_model(model)
+        except Exception:
+            encoding = tiktoken.get_encoding("cl100k_base")
+        return len(encoding.encode(text or ""))
+    except Exception:
+        return max(1, len(text or "") // 4)
+
+
+def _split_piece_by_estimate(piece: str, max_tokens: int, model: str) -> List[str]:
+    pending = piece.strip()
+    chunks = []
+    while pending and estimate_token_count(pending, model) > max_tokens:
+        low = 1
+        high = len(pending)
+        best = 1
+        while low <= high:
+            mid = (low + high) // 2
+            if estimate_token_count(pending[:mid], model) <= max_tokens:
+                best = mid
+                low = mid + 1
+            else:
+                high = mid - 1
+
+        boundary = best
+        prefix = pending[:best]
+        matches = list(re.finditer(r"[\s,.;:!?，。；：！？、]", prefix))
+        if matches and matches[-1].end() >= max(1, best // 2):
+            boundary = matches[-1].end()
+
+        chunk = pending[:boundary].strip()
+        if not chunk:
+            chunk = pending[:best].strip() or pending[:1]
+            boundary = len(chunk)
+        chunks.append(chunk)
+        pending = pending[boundary:].strip()
+
+    if pending:
+        chunks.append(pending)
+    return chunks
+
+
+def split_text_for_translation(
+    text: str,
+    max_tokens: int = config.MAX_BLOCK_TOKENS,
+    model: str = "",
+) -> List[str]:
+    normalized = (text or "").strip()
+    if not normalized:
+        return [""]
+    if max_tokens <= 0 or estimate_token_count(normalized, model) <= max_tokens:
+        return [normalized]
+
+    sentences = [
+        item.strip()
+        for item in re.split(r"(?<=[.!?。！？；;])\s+|\n+", normalized)
+        if item.strip()
+    ] or [normalized]
+
+    chunks = []
+    current = ""
+    for sentence in sentences:
+        if estimate_token_count(sentence, model) > max_tokens:
+            if current:
+                chunks.append(current)
+                current = ""
+            chunks.extend(_split_piece_by_estimate(sentence, max_tokens, model))
+            continue
+
+        candidate = f"{current} {sentence}".strip()
+        if current and estimate_token_count(candidate, model) > max_tokens:
+            chunks.append(current)
+            current = sentence
+        else:
+            current = candidate
+
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def _build_translation_units(blocks: List[dict], model: str) -> tuple[List[dict], Dict[str, List[dict]]]:
+    units = []
+    units_by_parent: Dict[str, List[dict]] = {}
+    for block in blocks:
+        parent_id = block["block_id"]
+        chunks = split_text_for_translation(block.get("text", ""), config.MAX_BLOCK_TOKENS, model)
+        units_by_parent[parent_id] = []
+        for index, chunk in enumerate(chunks):
+            unit = dict(block)
+            unit["parent_block_id"] = parent_id
+            unit["chunk_index"] = index
+            unit["chunk_count"] = len(chunks)
+            unit["text"] = chunk
+            if len(chunks) > 1:
+                unit["block_id"] = f"{parent_id}::part::{index}"
+            units.append(unit)
+            units_by_parent[parent_id].append(unit)
+    return units, units_by_parent
+
+
 async def translate_batches(
     blocks: List[dict],
     api_key: str,
@@ -113,8 +219,9 @@ async def translate_batches(
     headers = {"Authorization": f"Bearer {api_key}"}
     # 使用 semaphore 控制并发，避免过高并发触发限流
     semaphore = asyncio.Semaphore(concurrency)
-    results: Dict[str, str] = {}
-    failures: List[dict] = []
+    units, units_by_parent = _build_translation_units(blocks, model)
+    unit_results: Dict[str, str] = {}
+    unit_failures: List[dict] = []
 
     async def handle_batch(batch: List[dict]):
         async with semaphore:
@@ -148,14 +255,14 @@ async def translate_batches(
                     if not isinstance(item, dict) or "id" not in item or "translation" not in item:
                         raise TranslationError("response item missing fields")
                     received_ids.add(item["id"])
-                    results[item["id"]] = item["translation"]
+                    unit_results[item["id"]] = item["translation"]
                 # 校验覆盖所有输入 id，避免漏翻
                 input_ids = {b["block_id"] for b in batch}
                 if received_ids != input_ids:
                     raise TranslationError("response ids mismatch input")
             except Exception as exc:  # 捕获重试终止后的异常，记录失败
                 for b in batch:
-                    failures.append(
+                    unit_failures.append(
                         {
                             "id": b["block_id"],
                             "reason": str(exc),
@@ -163,8 +270,31 @@ async def translate_batches(
                         }
                     )
 
-    batches = _chunk_list(blocks, batch_size)
+    batches = _chunk_list(units, batch_size)
     async with httpx.AsyncClient(base_url=base_url, headers=headers) as client:
         await asyncio.gather(*(handle_batch(batch) for batch in batches))
+
+    failures_by_unit = {failure["id"]: failure for failure in unit_failures}
+    results: Dict[str, str] = {}
+    failures: List[dict] = []
+    for block in blocks:
+        parent_id = block["block_id"]
+        parent_units = units_by_parent.get(parent_id, [])
+        unit_ids = [unit["block_id"] for unit in parent_units]
+        failed = [failures_by_unit[unit_id] for unit_id in unit_ids if unit_id in failures_by_unit]
+        missing = [unit_id for unit_id in unit_ids if unit_id not in unit_results and unit_id not in failures_by_unit]
+        if failed or missing:
+            reasons = [failure.get("reason", "") for failure in failed]
+            if missing:
+                reasons.append(f"missing translated chunks: {len(missing)}")
+            failures.append(
+                {
+                    "id": parent_id,
+                    "reason": "; ".join(reason for reason in reasons if reason),
+                    "text_snippet": block.get("text", "")[:50],
+                }
+            )
+            continue
+        results[parent_id] = "\n".join(unit_results[unit_id] for unit_id in unit_ids)
 
     return results, failures

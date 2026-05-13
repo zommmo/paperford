@@ -4,7 +4,13 @@ import unittest
 from pathlib import Path
 
 from database import bulk_get, init_db
-from translation_job import build_params_json, create_job_from_blocks, job_counts, process_next_batch
+from translation_job import (
+    build_params_json,
+    create_job_from_blocks,
+    job_counts,
+    prepare_retry_failed_blocks,
+    process_next_batch,
+)
 
 
 def _block(block_id: str, text: str, text_hash: str) -> dict:
@@ -126,6 +132,42 @@ class TranslationJobTests(unittest.TestCase):
             self.assertEqual(job["results_map"], {"chapter.xhtml::p::0": "你好"})
             self.assertEqual(job_counts(job)["placeholders"], 0)
             self.assertEqual(bulk_get(db_path, [cache_key]), {cache_key: "你好"})
+
+    def test_failed_batch_can_be_requeued_for_retry(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "translations.sqlite3")
+            init_db(db_path)
+            blocks = [_block("chapter.xhtml::p::0", "Hello", "hash-1")]
+            job = create_job_from_blocks(
+                blocks,
+                b"epub",
+                "book.epub",
+                "model-a",
+                0.7,
+                1,
+                1,
+                "https://api.example.com/v1",
+                "",
+                db_path,
+                now=10,
+            )
+
+            async def failing_translate(batch, *_args):
+                return {}, [{"id": batch[0]["block_id"], "reason": "rate limited"}]
+
+            asyncio.run(process_next_batch(job, "key", db_path, failing_translate))
+
+            self.assertEqual(job["status"], "done")
+            self.assertEqual(job_counts(job)["failures"], 1)
+            self.assertEqual(job["failures"][0]["block"]["block_id"], "chapter.xhtml::p::0")
+
+            retry_count = prepare_retry_failed_blocks(job)
+
+            self.assertEqual(retry_count, 1)
+            self.assertEqual(job["status"], "running")
+            self.assertEqual(job["failures"], [])
+            self.assertEqual(job["processed_blocks"], 0)
+            self.assertEqual([block["block_id"] for block in job["pending_blocks"]], ["chapter.xhtml::p::0"])
 
 
 if __name__ == "__main__":

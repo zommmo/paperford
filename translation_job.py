@@ -173,6 +173,43 @@ def create_translation_job(
     )
 
 
+def _attach_failed_blocks(failures: list[dict], batch: list[dict]) -> list[dict]:
+    blocks_by_id = {block["block_id"]: block for block in batch}
+    enriched = []
+    for failure in failures:
+        item = dict(failure)
+        block = blocks_by_id.get(item.get("id"))
+        if block is not None:
+            item["block"] = dict(block)
+        enriched.append(item)
+    return enriched
+
+
+def prepare_retry_failed_blocks(job: dict) -> int:
+    retry_blocks = []
+    seen_ids = set()
+    for failure in job.get("failures") or []:
+        block = failure.get("block")
+        if not block:
+            continue
+        block_id = block.get("block_id")
+        if block_id in seen_ids:
+            continue
+        retry_blocks.append(dict(block))
+        seen_ids.add(block_id)
+
+    if not retry_blocks:
+        return 0
+
+    job["pending_blocks"] = retry_blocks
+    job["failures"] = []
+    job["processed_blocks"] = max(int(job.get("total_blocks") or 0) - len(retry_blocks), 0)
+    job["last_update_time"] = time.time()
+    job["output_bytes"] = None
+    job["status"] = "running"
+    return len(retry_blocks)
+
+
 async def process_next_batch(
     job: dict,
     api_key: str,
@@ -204,7 +241,7 @@ async def process_next_batch(
         job.get("target_language") or config.DEFAULT_TARGET_LANGUAGE,
     )
     job["results_map"].update(fresh_results)
-    job["failures"].extend(batch_failures)
+    job["failures"].extend(_attach_failed_blocks(batch_failures, batch))
 
     now_ts = int(time.time())
     rows = []

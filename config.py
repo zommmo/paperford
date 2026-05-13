@@ -6,6 +6,7 @@ BATCH_SIZE = 4
 CONCURRENCY = 4
 DEFAULT_TARGET_LANGUAGE = "Chinese"
 TARGET_LANGUAGES = ["Chinese", "English", "Japanese", "Korean", "French", "German", "Spanish"]
+MAX_BLOCK_TOKENS = 900
 
 # 翻译提示与容错设置
 PROMPT_VERSION = "v1"

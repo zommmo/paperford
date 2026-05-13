@@ -251,6 +251,14 @@ I18N = {
         "zh": "失败详情（文本块 ID / 原文前 50 字 / 错误原因）：",
         "en": "Failure Details (block_id / first 50 chars / reason):"
     },
+    "retry_failed_blocks": {
+        "zh": "重试失败段落",
+        "en": "Retry Failed Blocks"
+    },
+    "retry_failed_started": {
+        "zh": "已重新加入 {} 个失败段落。",
+        "en": "{} failed blocks queued for retry."
+    },
     "translate_self_test": {
         "zh": "翻译自测（MVP-3）",
         "en": "Translation Self Test (MVP-3)"
