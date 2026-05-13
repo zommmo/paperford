@@ -60,7 +60,7 @@ streamlit run app.py
 
 ## 开发验证
 
-项目的核心逻辑测试使用 Python 标准库 `unittest`，不需要额外测试依赖。
+项目的核心逻辑测试使用 Python 标准库 `unittest`，不需要额外测试依赖。测试包含一个小型 EPUB 端到端流程：抽取、mock 翻译、缓存写入、输出注入和 CSS 校验。
 
 ```bash
 .venv/bin/python -m unittest discover -s tests
