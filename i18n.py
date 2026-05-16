@@ -63,6 +63,18 @@ I18N = {
         "zh": "译文输出语言；会参与缓存 key，切换语言不会复用旧语言缓存。",
         "en": "Translation output language. It is included in the cache key, so different languages use separate caches."
     },
+    "custom_target_language_label": {
+        "zh": "自定义目标语言",
+        "en": "Custom Target Language"
+    },
+    "custom_target_language_placeholder": {
+        "zh": "例如：繁体中文、Italian、Portuguese",
+        "en": "For example: Traditional Chinese, Italian, Portuguese"
+    },
+    "custom_target_language_help": {
+        "zh": "会原样写入翻译提示词和缓存 key；建议使用模型能理解的语言名称。",
+        "en": "Saved as-is in the translation prompt and cache key; use a language name the model can understand."
+    },
     "temperature_label": {
         "zh": "温度（随机性）",
         "en": "Temperature (Randomness)"

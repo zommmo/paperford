@@ -171,6 +171,7 @@ with st.sidebar.expander(get_i18n("advanced_settings", lang)):
             "French": "法文",
             "German": "德文",
             "Spanish": "西班牙文",
+            "__custom__": "自定义",
         },
         "en": {
             "Chinese": "Chinese",
@@ -180,18 +181,32 @@ with st.sidebar.expander(get_i18n("advanced_settings", lang)):
             "French": "French",
             "German": "German",
             "Spanish": "Spanish",
+            "__custom__": "Custom",
         },
     }
     current_target_language = settings.get("target_language", config.DEFAULT_TARGET_LANGUAGE)
-    if current_target_language not in config.TARGET_LANGUAGES:
-        current_target_language = config.DEFAULT_TARGET_LANGUAGE
+    target_language_options = config.TARGET_LANGUAGES + ["__custom__"]
+    selected_target_language = (
+        current_target_language
+        if current_target_language in config.TARGET_LANGUAGES
+        else "__custom__"
+    )
     target_language = st.selectbox(
         get_i18n("target_language_label", lang),
-        options=config.TARGET_LANGUAGES,
-        index=config.TARGET_LANGUAGES.index(current_target_language),
+        options=target_language_options,
+        index=target_language_options.index(selected_target_language),
         format_func=lambda value: target_language_labels.get(lang, target_language_labels["zh"]).get(value, value),
         help=get_i18n("target_language_help", lang),
     )
+    if target_language == "__custom__":
+        target_language = st.text_input(
+            get_i18n("custom_target_language_label", lang),
+            value=current_target_language if current_target_language not in config.TARGET_LANGUAGES else "",
+            placeholder=get_i18n("custom_target_language_placeholder", lang),
+            help=get_i18n("custom_target_language_help", lang),
+        ).strip()
+        if not target_language:
+            target_language = config.DEFAULT_TARGET_LANGUAGE
     custom_prompt = st.text_area(
         get_i18n("custom_prompt_label", lang),
         value=st.session_state.custom_prompt,

@@ -33,6 +33,11 @@ class TranslationJobTests(unittest.TestCase):
         self.assertIn('"temperature":0.7', chinese)
         self.assertNotEqual(chinese, japanese)
 
+    def test_params_json_accepts_custom_target_language(self):
+        params = build_params_json(0.7, "Traditional Chinese")
+
+        self.assertIn('"target_language":"Traditional Chinese"', params)
+
     def test_create_job_splits_cache_hits_and_pending_blocks(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = str(Path(tmpdir) / "translations.sqlite3")

@@ -14,6 +14,11 @@ class TranslatorTests(unittest.TestCase):
         self.assertIn("Translations must be Japanese.", prompt)
         self.assertIn("only outputs JSON", prompt)
 
+    def test_build_system_prompt_accepts_custom_target_language(self):
+        prompt = config.build_system_prompt("Traditional Chinese")
+
+        self.assertIn("Translations must be Traditional Chinese.", prompt)
+
     def test_extract_json_array_accepts_plain_json(self):
         parsed = extract_json_array('[{"id":"a","translation":"你好"}]')
 
