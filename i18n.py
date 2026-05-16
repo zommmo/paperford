@@ -91,6 +91,10 @@ I18N = {
         "zh": "最大文本块数（0 表示不限制）",
         "en": "Max Blocks (0 for unlimited)"
     },
+    "max_blocks_limited_warning": {
+        "zh": "当前只会翻译前 {} 个文本块。要翻译整本书，请把这里改成 0。",
+        "en": "Only the first {} text blocks will be translated. Set this to 0 to translate the full book."
+    },
     "test_connection": {
         "zh": "测试连接",
         "en": "Test Connection"
@@ -242,6 +246,30 @@ I18N = {
     "paused_info": {
         "zh": "已暂停，还剩 {} 段未翻译。",
         "en": "Paused. {} blocks remaining to translate."
+    },
+    "partial_translation_warning": {
+        "zh": "当前是部分翻译模式：最多处理前 {} 个文本块，其他段落会保留原文且不会插入译文。",
+        "en": "Partial translation mode is enabled: at most the first {} text blocks are processed. Other blocks keep the original text without inserted translations."
+    },
+    "job_status_idle": {
+        "zh": "未开始。",
+        "en": "Not started."
+    },
+    "job_status_running": {
+        "zh": "正在翻译：已处理 {processed}/{total} 段，剩余 {pending} 段。",
+        "en": "Translating: processed {processed}/{total} blocks, {pending} remaining."
+    },
+    "job_status_paused": {
+        "zh": "已暂停：已处理 {processed}/{total} 段。点击“继续”恢复当前任务，点击“停止并清空”放弃当前任务。",
+        "en": "Paused: processed {processed}/{total} blocks. Click Resume to continue this job, or Stop & Clear to discard it."
+    },
+    "job_status_done": {
+        "zh": "任务完成：已得到 {translated} 段译文，失败 {failures} 段。",
+        "en": "Done: {translated} translations ready, {failures} failures."
+    },
+    "job_status_empty": {
+        "zh": "未解析到可翻译文本。",
+        "en": "No translatable text found."
     },
     "translation_completed": {
         "zh": "🎉 翻译完成",

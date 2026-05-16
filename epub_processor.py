@@ -144,14 +144,10 @@ def inject_translations(epub_bytes: bytes, translations: dict[str, str]) -> byte
                 block_id = f"{doc_name}::{node.name}::{index}"
                 translation = translations.get(block_id)
                 if translation:
-                    trans_text = translation
-                else:
-                    trans_text = "[未翻译]"
-
-                trans_tag = soup.new_tag("p")
-                trans_tag["class"] = "trans-text"
-                trans_tag.string = trans_text
-                node.insert_after(trans_tag)
+                    trans_tag = soup.new_tag("p")
+                    trans_tag["class"] = "trans-text"
+                    trans_tag.string = translation
+                    node.insert_after(trans_tag)
                 index += 1
 
             item.set_content(str(soup).encode("utf-8"))

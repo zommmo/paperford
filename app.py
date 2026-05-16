@@ -37,7 +37,7 @@ def _load_initial_settings() -> dict:
         "temperature": float(config.TEMPERATURE),
         "batch_size": int(config.BATCH_SIZE),
         "concurrency": int(config.CONCURRENCY),
-        "max_blocks": 50,
+        "max_blocks": 0,
         "custom_prompt": "",
         "target_language": config.DEFAULT_TARGET_LANGUAGE,
         "language": "zh",
@@ -237,9 +237,11 @@ with st.sidebar.expander(get_i18n("advanced_settings", lang)):
     max_blocks = st.number_input(
         get_i18n("max_blocks_label", lang),
         min_value=0,
-        value=int(settings.get("max_blocks", 50)),
+        value=int(settings.get("max_blocks", 0)),
         step=1,
     )
+    if int(max_blocks) > 0:
+        st.warning(get_i18n("max_blocks_limited_warning", lang).format(int(max_blocks)))
     if int(max_blocks) != settings.get("max_blocks"):
         settings["max_blocks"] = int(max_blocks)
         save_settings(settings)
@@ -403,11 +405,17 @@ if st.button(get_i18n("cache_smoke_test", lang)):
 
 st.subheader(get_i18n("translate_epub_title", lang))
 job = st.session_state.job
+job_status = job.get("status", "idle")
+can_start = job_status in {"idle", "done", "empty"}
+can_pause = job_status == "running"
+can_resume = job_status == "paused"
+can_stop = job_status != "idle"
+
 col_start, col_pause, col_resume, col_stop = st.columns(4)
-start_clicked = col_start.button(get_i18n("start_translation", lang), disabled=job["status"] == "running")
-pause_clicked = col_pause.button(get_i18n("pause", lang), disabled=job["status"] != "running")
-resume_clicked = col_resume.button(get_i18n("resume", lang), disabled=job["status"] != "paused")
-stop_clicked = col_stop.button(get_i18n("stop_clear", lang), disabled=job["status"] == "idle")
+start_clicked = col_start.button(get_i18n("start_translation", lang), disabled=not can_start)
+pause_clicked = col_pause.button(get_i18n("pause", lang), disabled=not can_pause)
+resume_clicked = col_resume.button(get_i18n("resume", lang), disabled=not can_resume)
+stop_clicked = col_stop.button(get_i18n("stop_clear", lang), disabled=not can_stop)
 
 if stop_clicked:
     st.session_state.job = empty_job_state()
@@ -447,44 +455,6 @@ if pause_clicked and job["status"] == "running":
 if resume_clicked and job["status"] == "paused":
     job["status"] = "running"
 
-if job["status"] != "idle":
-    progress_bar = st.progress(0)
-    progress_info = st.empty()
-
-    def update_progress() -> None:
-        total_count = job.get("total_blocks", 0)
-        processed_count = job.get("processed_blocks", 0)
-        percent = int(processed_count / total_count * 100) if total_count else 0
-        progress_bar.progress(min(percent, 100))
-        start_time = job.get("start_time") or time.time()
-        elapsed = time.time() - start_time
-        if processed_count > 0:
-            remaining = elapsed / processed_count * (total_count - processed_count)
-            remaining_text = f"{remaining:.2f} s"
-        else:
-            remaining_text = "—"
-        cache_hit_count = job.get("hit_count", 0)
-        miss_count = job.get("miss_count")
-        if miss_count is None:
-            miss_count = max(total_count - cache_hit_count, 0)
-        success_count = len(job.get("results_map") or {})
-        failure_count = len(job.get("failures") or [])
-        
-        with progress_info.container():
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric(get_i18n("stats_total_blocks", lang), total_count)
-            c2.metric(get_i18n("stats_processed_blocks", lang), processed_count)
-            c3.metric(get_i18n("stats_cache_hits", lang), cache_hit_count)
-            c4.metric(get_i18n("stats_misses", lang), miss_count)
-            
-            c5, c6, c7, c8 = st.columns(4)
-            c5.metric(get_i18n("stats_translated", lang), success_count)
-            c6.metric(get_i18n("stats_failures", lang), failure_count)
-            c7.metric(get_i18n("stats_elapsed", lang), f"{elapsed:.2f}")
-            c8.metric(get_i18n("stats_remaining_time", lang), remaining_text)
-
-    update_progress()
-
 if job["status"] == "running":
     if not job.get("pending_blocks"):
         job["status"] = "done"
@@ -493,10 +463,51 @@ if job["status"] == "running":
         # 用户就能在批次间隙点击暂停/继续，从而实现“可暂停”的体验。
         asyncio.run(process_next_batch(job, api_key=api_key, db_path=config.DB_PATH))
 
-        update_progress()
-
         if job["pending_blocks"] and job["status"] == "running":
             st.rerun()
+
+if job["status"] != "idle":
+    total_count = job.get("total_blocks", 0)
+    processed_count = job.get("processed_blocks", 0)
+    percent = int(processed_count / total_count * 100) if total_count else 0
+    start_time = job.get("start_time") or time.time()
+    elapsed = time.time() - start_time
+    if processed_count > 0:
+        remaining = elapsed / processed_count * (total_count - processed_count)
+        remaining_text = f"{remaining:.2f} s"
+    else:
+        remaining_text = "—"
+    cache_hit_count = job.get("hit_count", 0)
+    miss_count = job.get("miss_count")
+    if miss_count is None:
+        miss_count = max(total_count - cache_hit_count, 0)
+    success_count = len(job.get("results_map") or {})
+    failure_count = len(job.get("failures") or [])
+
+    st.progress(min(percent, 100))
+    st.caption(
+        get_i18n(f"job_status_{job['status']}", lang).format(
+            processed=processed_count,
+            total=total_count,
+            pending=len(job.get("pending_blocks") or []),
+            translated=success_count,
+            failures=failure_count,
+        )
+    )
+    if int(settings.get("max_blocks", 0)) > 0:
+        st.warning(get_i18n("partial_translation_warning", lang).format(int(settings.get("max_blocks", 0))))
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric(get_i18n("stats_total_blocks", lang), total_count)
+    c2.metric(get_i18n("stats_processed_blocks", lang), processed_count)
+    c3.metric(get_i18n("stats_cache_hits", lang), cache_hit_count)
+    c4.metric(get_i18n("stats_misses", lang), miss_count)
+
+    c5, c6, c7, c8 = st.columns(4)
+    c5.metric(get_i18n("stats_translated", lang), success_count)
+    c6.metric(get_i18n("stats_failures", lang), failure_count)
+    c7.metric(get_i18n("stats_elapsed", lang), f"{elapsed:.2f}")
+    c8.metric(get_i18n("stats_remaining_time", lang), remaining_text)
 
 if job["status"] == "paused":
     st.info(get_i18n("paused_info", lang).format(len(job.get('pending_blocks', []))))

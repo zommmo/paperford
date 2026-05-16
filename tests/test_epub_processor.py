@@ -97,6 +97,20 @@ class EpubProcessorTests(unittest.TestCase):
         self.assertIn('href="styles/trans-text.css"', html)
         self.assertIn(".trans-text", css)
 
+    def test_inject_translations_skips_missing_translations(self):
+        output = inject_translations(
+            _build_epub_bytes(),
+            {
+                "chap_01.xhtml::h1::0": "第一章",
+            },
+        )
+        html = _read_first_document_html(output)
+        soup = BeautifulSoup(html, "lxml")
+        translations = [node.get_text(strip=True) for node in soup.select("p.trans-text")]
+
+        self.assertEqual(translations, ["第一章"])
+        self.assertNotIn("[未翻译]", html)
+
 
 if __name__ == "__main__":
     unittest.main()
