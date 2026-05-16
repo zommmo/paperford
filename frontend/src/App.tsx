@@ -58,7 +58,7 @@ const emptyJob: JobStatus = {
 const text = {
   zh: {
     localPress: "local bilingual press",
-    appTitle: "EPUB 行间双语翻译器",
+    appTitle: "纸渡",
     heroCopy: "把一本书慢慢拆成段落、缓存、译文和纸面秩序。",
     language: "Language",
     manuscript: "Manuscript",
@@ -150,7 +150,7 @@ const text = {
   },
   en: {
     localPress: "local bilingual press",
-    appTitle: "EPUB Bilingual Translator",
+    appTitle: "Paperford",
     heroCopy: "Turn a book into ordered passages, cache hits, translations, and a quiet reading copy.",
     language: "Language",
     manuscript: "Manuscript",

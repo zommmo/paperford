@@ -25,7 +25,7 @@ class HealthRequest(BaseModel):
 
 def create_app(manager: SingleJobManager | None = None) -> FastAPI:
     init_db(config.DB_PATH)
-    app = FastAPI(title="EPUB Bilingual Translator API")
+    app = FastAPI(title="Paperford API")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
