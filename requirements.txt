@@ -1,4 +1,6 @@
-streamlit
+fastapi
+uvicorn
+python-multipart
 ebooklib
 beautifulsoup4
 lxml

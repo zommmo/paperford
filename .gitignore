@@ -6,3 +6,6 @@ __pycache__/
 *.sqlite3
 output/
 .env
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
