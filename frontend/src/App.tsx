@@ -757,7 +757,7 @@ function App() {
           <label>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                 <span>{copy.glossary}</span>
-                <button type="button" className="ghost compact" disabled={extractingGlossary || !file || !apiKey} onClick={handleExtractGlossary} style={{ padding: '2px 8px', fontSize: '0.8em', margin: 0 }}>
+                <button type="button" className="secondary compact" disabled={extractingGlossary} onClick={handleExtractGlossary} style={{ padding: '2px 8px', fontSize: '0.8em', margin: 0 }}>
                     {extractingGlossary ? copy.extracting : copy.extractGlossary}
                 </button>
             </div>
