@@ -60,7 +60,7 @@ const text = {
     localPress: "local bilingual press",
     appTitle: "EPUB 行间双语翻译器",
     heroCopy: "把一本书慢慢拆成段落、缓存、译文和纸面秩序。",
-    language: "界面语言",
+    language: "Language",
     manuscript: "Manuscript",
     manuscriptTitle: "书稿与流程",
     chooseEpub: "选择一本 EPUB",
