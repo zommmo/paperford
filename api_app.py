@@ -85,6 +85,32 @@ def create_app(manager: SingleJobManager | None = None) -> FastAPI:
             ],
         }
 
+    @app.post("/api/extract-glossary")
+    async def extract_glossary_api(
+        file: UploadFile = File(...),
+        api_key: str = Form(...),
+        base_url: str = Form(...),
+        model: str = Form(...),
+        target_language: str = Form(config.DEFAULT_TARGET_LANGUAGE),
+    ) -> dict:
+        epub_bytes = await file.read()
+        try:
+            from translator import generate_glossary
+            blocks = extract_blocks(epub_bytes)
+            if not blocks:
+                return {"glossary": ""}
+            
+            glossary_text = await generate_glossary(
+                blocks=blocks,
+                api_key=api_key,
+                base_url=normalize_base_url(base_url),
+                model=model,
+                target_language=target_language
+            )
+            return {"glossary": glossary_text}
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"Failed to extract glossary: {exc}") from exc
+
     @app.post("/api/jobs")
     async def create_job(
         file: UploadFile = File(...),

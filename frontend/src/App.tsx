@@ -109,6 +109,9 @@ const text = {
     noConnection: "暂无连接测试结果",
     clearCache: "清除翻译缓存",
     cacheCleared: "已清除 {count} 条缓存。",
+    extractGlossary: "自动提取术语",
+    extracting: "提取中...",
+    extractGlossaryFailed: "提取术语失败",
     cacheClearFailed: "清除缓存失败",
     addProvider: "添加自定义 Provider",
     providerName: "名称",
@@ -198,6 +201,9 @@ const text = {
     noConnection: "No connection test result yet",
     clearCache: "Clear Translation Cache",
     cacheCleared: "Cleared {count} cached rows.",
+    extractGlossary: "Auto-Extract Terms",
+    extracting: "Extracting...",
+    extractGlossaryFailed: "Failed to extract terms",
     cacheClearFailed: "Failed to clear cache",
     addProvider: "Add Custom Provider",
     providerName: "Name",
@@ -304,6 +310,7 @@ function App() {
   const [maxBlocks, setMaxBlocks] = useState("0");
   const [customPrompt, setCustomPrompt] = useState("");
   const [glossary, setGlossary] = useState("");
+  const [extractingGlossary, setExtractingGlossary] = useState(false);
   const [connection, setConnection] = useState<Record<string, unknown> | null>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -323,6 +330,7 @@ function App() {
   }, [lang]);
 
   useEffect(() => {
+    refreshJob().catch(() => {});
     jsonRequest<AppConfig>("/api/config").then((data) => {
       setConfig(data);
       setProviderId(data.providers[0]?.id || "openai");
@@ -515,6 +523,40 @@ function App() {
       setMessage(error instanceof Error ? error.message : copy.createJobFailed);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleExtractGlossary() {
+    if (!file) {
+      setMessage(copy.needFile);
+      return;
+    }
+    if (!apiKey) {
+      setMessage(copy.needApiKey);
+      return;
+    }
+    setExtractingGlossary(true);
+    setMessage("");
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("api_key", apiKey);
+    formData.append("base_url", baseUrl);
+    formData.append("model", model);
+    formData.append("target_language", finalTargetLanguage);
+    try {
+      const response = await fetch("/api/extract-glossary", { method: "POST", body: formData });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || copy.extractGlossaryFailed);
+      if (data.glossary) {
+        setGlossary(prev => {
+          const trimmed = prev.trim();
+          return trimmed ? `${trimmed}\n${data.glossary}` : data.glossary;
+        });
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : copy.extractGlossaryFailed);
+    } finally {
+      setExtractingGlossary(false);
     }
   }
 
@@ -712,7 +754,13 @@ function App() {
           <label>{copy.stylePrompt}
             <textarea rows={3} value={customPrompt} onChange={(event) => setCustomPrompt(event.target.value)} placeholder={copy.promptPlaceholder} />
           </label>
-          <label>{copy.glossary}
+          <label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <span>{copy.glossary}</span>
+                <button type="button" className="ghost compact" disabled={extractingGlossary || !file || !apiKey} onClick={handleExtractGlossary} style={{ padding: '2px 8px', fontSize: '0.8em', margin: 0 }}>
+                    {extractingGlossary ? copy.extracting : copy.extractGlossary}
+                </button>
+            </div>
             <textarea rows={4} value={glossary} onChange={(event) => setGlossary(event.target.value)} placeholder={copy.glossaryPlaceholder} />
           </label>
           <details className="custom-provider">

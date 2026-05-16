@@ -308,3 +308,60 @@ async def translate_batches(
         results[parent_id] = "\n".join(unit_results[unit_id] for unit_id in unit_ids)
 
     return results, failures
+
+
+async def generate_glossary(
+    blocks: List[dict],
+    api_key: str,
+    base_url: str,
+    model: str,
+    target_language: str
+) -> str:
+    text_samples = []
+    char_count = 0
+    for b in blocks:
+        text_samples.append(b["text"])
+        char_count += len(b["text"])
+        if char_count > 15000:
+            break
+            
+    if not text_samples:
+        return ""
+    
+    sample_text = "\n\n".join(text_samples)
+    
+    system_prompt = (
+        f"You are a translation assistant. Extract main character names, locations, and unique proper nouns from the text. "
+        f"Provide their translation in {target_language}. "
+        "Return ONLY a valid JSON dictionary where keys are original names and values are translations. "
+        "Do not output markdown code blocks or any explanations, just the JSON object."
+    )
+    
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": f"Text:\n{sample_text}"}
+    ]
+    
+    payload = {
+        "model": model,
+        "temperature": 0.3,
+        "messages": messages,
+    }
+    
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    
+    async with httpx.AsyncClient(base_url=base_url, headers=headers, timeout=120.0) as client:
+        try:
+            content = await _call_model(client, payload)
+            content = content.strip()
+            if content.startswith("```"):
+                content = re.sub(r"^```(json)?|```$", "", content).strip()
+            data = json.loads(content)
+            if isinstance(data, dict):
+                return "\n".join([f"{k}={v}" for k, v in data.items() if isinstance(k, str) and isinstance(v, str)])
+            return ""
+        except Exception as e:
+            raise TranslationError(f"Glossary extraction failed: {str(e)}")
