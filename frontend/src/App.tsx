@@ -754,15 +754,15 @@ function App() {
           <label>{copy.stylePrompt}
             <textarea rows={3} value={customPrompt} onChange={(event) => setCustomPrompt(event.target.value)} placeholder={copy.promptPlaceholder} />
           </label>
-          <label>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                <span>{copy.glossary}</span>
+          <div className="field-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontWeight: 500 }}>{copy.glossary}</span>
                 <button type="button" className="secondary compact" disabled={extractingGlossary} onClick={handleExtractGlossary} style={{ padding: '2px 8px', fontSize: '0.8em', margin: 0 }}>
                     {extractingGlossary ? copy.extracting : copy.extractGlossary}
                 </button>
             </div>
             <textarea rows={4} value={glossary} onChange={(event) => setGlossary(event.target.value)} placeholder={copy.glossaryPlaceholder} />
-          </label>
+          </div>
           <details className="custom-provider">
             <summary>{copy.addProvider}</summary>
             <div className="provider-form">
