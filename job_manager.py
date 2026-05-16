@@ -106,6 +106,9 @@ class SingleJobManager:
 
     def resume(self) -> dict:
         if self.job.get("status") == "paused":
+            if self._task and not self._task.done():
+                self._task.cancel()
+                self._task = None
             self.job["status"] = "running"
             self._start_worker()
         return self.snapshot()

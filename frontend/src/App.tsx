@@ -67,6 +67,7 @@ const text = {
     uploadHint: "上传后可先解析预览，再开始翻译。",
     parsePreview: "解析预览",
     startTranslation: "开始翻译",
+    restartTranslation: "重新开始翻译",
     progress: "Progress",
     progressTitle: "翻译状态",
     pause: "暂停",
@@ -104,6 +105,9 @@ const text = {
     promptPlaceholder: "例如：译文温柔、克制，保留文学节奏。",
     debug: "调试与连接详情",
     noConnection: "暂无连接测试结果",
+    clearCache: "清除翻译缓存",
+    cacheCleared: "已清除 {count} 条缓存。",
+    cacheClearFailed: "清除缓存失败",
     addProvider: "添加自定义 Provider",
     providerName: "名称",
     providerNamePlaceholder: "例如：Local OpenAI",
@@ -150,6 +154,7 @@ const text = {
     uploadHint: "Parse a preview after upload, then start translation.",
     parsePreview: "Parse Preview",
     startTranslation: "Start Translation",
+    restartTranslation: "Restart Translation",
     progress: "Progress",
     progressTitle: "Translation Status",
     pause: "Pause",
@@ -187,6 +192,9 @@ const text = {
     promptPlaceholder: "Example: warm, restrained prose with literary cadence.",
     debug: "Debug & Connection Details",
     noConnection: "No connection test result yet",
+    clearCache: "Clear Translation Cache",
+    cacheCleared: "Cleared {count} cached rows.",
+    cacheClearFailed: "Failed to clear cache",
     addProvider: "Add Custom Provider",
     providerName: "Name",
     providerNamePlaceholder: "Example: Local OpenAI",
@@ -257,6 +265,16 @@ function uniqueProviderId(name: string, providers: Provider[]): string {
   return `${base}-${index}`;
 }
 
+function defaultTargetForLanguage(language: Language): string {
+  return language === "en" ? "English" : "Chinese";
+}
+
+function numberOrDefault(value: string, fallback: number): number {
+  if (value.trim() === "") return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 function App() {
   const [lang, setLang] = useState<Language>(initialLanguage);
   const copy = text[lang];
@@ -273,12 +291,13 @@ function App() {
   const [baseUrl, setBaseUrl] = useState("");
   const [model, setModel] = useState("");
   const [models, setModels] = useState<string[]>([]);
-  const [targetLanguage, setTargetLanguage] = useState("Chinese");
+  const [targetLanguage, setTargetLanguage] = useState(defaultTargetForLanguage(lang));
+  const [targetLanguageTouched, setTargetLanguageTouched] = useState(false);
   const [customLanguage, setCustomLanguage] = useState("");
-  const [temperature, setTemperature] = useState(0.7);
-  const [batchSize, setBatchSize] = useState(4);
-  const [concurrency, setConcurrency] = useState(4);
-  const [maxBlocks, setMaxBlocks] = useState(0);
+  const [temperature, setTemperature] = useState("0.7");
+  const [batchSize, setBatchSize] = useState("4");
+  const [concurrency, setConcurrency] = useState("4");
+  const [maxBlocks, setMaxBlocks] = useState("0");
   const [customPrompt, setCustomPrompt] = useState("");
   const [connection, setConnection] = useState<Record<string, unknown> | null>(null);
   const [message, setMessage] = useState("");
@@ -304,11 +323,13 @@ function App() {
       setProviderId(data.providers[0]?.id || "openai");
       setBaseUrl(data.providers[0]?.base_url || "");
       setModel(data.defaults.model);
-      setTargetLanguage(data.defaults.target_language);
-      setTemperature(data.defaults.temperature);
-      setBatchSize(data.defaults.batch_size);
-      setConcurrency(data.defaults.concurrency);
-      setMaxBlocks(data.defaults.max_blocks);
+      if (!targetLanguageTouched) {
+        setTargetLanguage(defaultTargetForLanguage(lang));
+      }
+      setTemperature(String(data.defaults.temperature));
+      setBatchSize(String(data.defaults.batch_size));
+      setConcurrency(String(data.defaults.concurrency));
+      setMaxBlocks(String(data.defaults.max_blocks));
     }).catch((error) => setMessage(error.message));
   }, []);
 
@@ -352,6 +373,9 @@ function App() {
   }
 
   function changeLanguage(nextLanguage: Language) {
+    if (!targetLanguageTouched || targetLanguage === defaultTargetForLanguage(lang)) {
+      setTargetLanguage(defaultTargetForLanguage(nextLanguage));
+    }
     setLang(nextLanguage);
     setMessage("");
   }
@@ -458,18 +482,25 @@ function App() {
     }
     setBusy(true);
     setMessage("");
+    const parsedTemperature = numberOrDefault(temperature, 0.7);
+    const parsedBatchSize = Math.max(1, Math.floor(numberOrDefault(batchSize, 4)));
+    const parsedConcurrency = Math.max(1, Math.floor(numberOrDefault(concurrency, 4)));
+    const parsedMaxBlocks = Math.max(0, Math.floor(numberOrDefault(maxBlocks, 0)));
     const formData = new FormData();
     formData.append("file", file);
     formData.append("api_key", apiKey);
     formData.append("base_url", baseUrl);
     formData.append("model", model);
-    formData.append("temperature", String(temperature));
-    formData.append("batch_size", String(batchSize));
-    formData.append("concurrency", String(concurrency));
+    formData.append("temperature", String(parsedTemperature));
+    formData.append("batch_size", String(parsedBatchSize));
+    formData.append("concurrency", String(parsedConcurrency));
     formData.append("custom_prompt", customPrompt);
     formData.append("target_language", finalTargetLanguage);
-    formData.append("max_blocks", String(maxBlocks));
+    formData.append("max_blocks", String(parsedMaxBlocks));
     try {
+      if (job.status === "paused") {
+        await jsonRequest<JobStatus>("/api/jobs/current/stop", { method: "POST", body: "{}" });
+      }
       const response = await fetch("/api/jobs", { method: "POST", body: formData });
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || copy.createJobFailed);
@@ -482,8 +513,29 @@ function App() {
   }
 
   async function postJobAction(path: string) {
-    const data = await jsonRequest<JobStatus>(path, { method: "POST", body: "{}" });
-    setJob(data);
+    setMessage("");
+    try {
+      const data = await jsonRequest<JobStatus>(path, { method: "POST", body: "{}" });
+      setJob(data);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : copy.createJobFailed);
+    }
+  }
+
+  async function clearTranslationCache() {
+    setBusy(true);
+    setMessage("");
+    try {
+      const data = await jsonRequest<{ ok: boolean; cleared: number }>("/api/cache/clear", {
+        method: "POST",
+        body: "{}"
+      });
+      setMessage(copy.cacheCleared.replace("{count}", String(data.cleared)));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : copy.cacheClearFailed);
+    } finally {
+      setBusy(false);
+    }
   }
 
   function downloadOutput() {
@@ -528,7 +580,9 @@ function App() {
             </label>
             <div className="actions">
               <button type="button" className="secondary" disabled={busy || !file} onClick={parsePreview}>{copy.parsePreview}</button>
-              <button type="submit" disabled={busy || job.status === "running" || job.status === "paused"}>{copy.startTranslation}</button>
+              <button type="submit" disabled={busy || job.status === "running"}>
+                {job.status === "paused" ? copy.restartTranslation : copy.startTranslation}
+              </button>
             </div>
           </form>
 
@@ -626,7 +680,10 @@ function App() {
           </div>
           <button type="button" className="secondary" onClick={testConnection}>{copy.testConnection}</button>
           <label>{copy.targetLanguage}
-            <select value={targetLanguage} onChange={(event) => setTargetLanguage(event.target.value)}>
+            <select value={targetLanguage} onChange={(event) => {
+              setTargetLanguageTouched(true);
+              setTargetLanguage(event.target.value);
+            }}>
               {config?.target_languages.map((language) => (
                 <option key={language} value={language}>
                   {copy.languageNames[language as keyof typeof copy.languageNames] || language}
@@ -641,10 +698,10 @@ function App() {
             </label>
           )}
           <div className="number-grid">
-            <label>{copy.temperature}<input type="number" min="0" max="2" step="0.1" value={temperature} onChange={(event) => setTemperature(Number(event.target.value))} /></label>
-            <label>{copy.batchSize}<input type="number" min="1" value={batchSize} onChange={(event) => setBatchSize(Number(event.target.value))} /></label>
-            <label>{copy.concurrency}<input type="number" min="1" value={concurrency} onChange={(event) => setConcurrency(Number(event.target.value))} /></label>
-            <label>{copy.maxBlocks}<input type="number" min="0" value={maxBlocks} onChange={(event) => setMaxBlocks(Number(event.target.value))} /></label>
+            <label>{copy.temperature}<input type="number" min="0" max="2" step="0.1" value={temperature} onChange={(event) => setTemperature(event.target.value)} /></label>
+            <label>{copy.batchSize}<input type="number" min="1" value={batchSize} onChange={(event) => setBatchSize(event.target.value)} /></label>
+            <label>{copy.concurrency}<input type="number" min="1" value={concurrency} onChange={(event) => setConcurrency(event.target.value)} /></label>
+            <label>{copy.maxBlocks}<input type="number" min="0" value={maxBlocks} onChange={(event) => setMaxBlocks(event.target.value)} /></label>
           </div>
           <label>{copy.stylePrompt}
             <textarea rows={5} value={customPrompt} onChange={(event) => setCustomPrompt(event.target.value)} placeholder={copy.promptPlaceholder} />
@@ -663,6 +720,9 @@ function App() {
           </details>
           <details className="debug">
             <summary>{copy.debug}</summary>
+            <button type="button" className="secondary clear-cache" disabled={busy} onClick={clearTranslationCache}>
+              {copy.clearCache}
+            </button>
             <pre>{connection ? JSON.stringify(connection, null, 2) : copy.noConnection}</pre>
           </details>
         </aside>

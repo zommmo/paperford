@@ -22,6 +22,7 @@
   - 内置 OpenAI、DeepSeek、xAI、Gemini OpenAI-compatible。
   - 支持当前页面会话内添加和删除自定义 Provider。
   - 支持模型列表获取和连接测试。
+  - 支持页面内清除 SQLite 翻译缓存。
 - 界面语言：
   - 支持中文/英文切换。
   - 语言选择保存到浏览器 `localStorage["epub-bilingual-ui-language"]`。
@@ -41,7 +42,7 @@
 
 - `api_app.py`
   - FastAPI 应用与接口。
-  - 包含配置、模型列表、健康检查、预览、任务控制和下载接口。
+  - 包含配置、模型列表、健康检查、预览、任务控制、缓存清理和下载接口。
 - `job_manager.py`
   - 新版 Web UI 的单任务队列管理。
   - 持有当前 job、后台 task 和下载输出。

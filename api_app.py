@@ -4,7 +4,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 
 import config
-from database import init_db
+from database import clear_cache, init_db
 from epub_processor import extract_blocks
 from job_manager import JobConflictError, JobNotReadyError, SingleJobManager
 from provider_tools import fetch_models, health_check, normalize_base_url
@@ -123,19 +123,19 @@ def create_app(manager: SingleJobManager | None = None) -> FastAPI:
         return app.state.manager.snapshot()
 
     @app.post("/api/jobs/current/pause")
-    def pause_job() -> dict:
+    async def pause_job() -> dict:
         return app.state.manager.pause()
 
     @app.post("/api/jobs/current/resume")
-    def resume_job() -> dict:
+    async def resume_job() -> dict:
         return app.state.manager.resume()
 
     @app.post("/api/jobs/current/stop")
-    def stop_job() -> dict:
+    async def stop_job() -> dict:
         return app.state.manager.stop()
 
     @app.post("/api/jobs/current/retry-failures")
-    def retry_failures() -> dict:
+    async def retry_failures() -> dict:
         return app.state.manager.retry_failures()
 
     @app.get("/api/jobs/current/download")
@@ -149,6 +149,11 @@ def create_app(manager: SingleJobManager | None = None) -> FastAPI:
             media_type="application/epub+zip",
             headers={"Content-Disposition": f'attachment; filename="{output_name}"'},
         )
+
+    @app.post("/api/cache/clear")
+    def clear_translation_cache() -> dict:
+        cleared = clear_cache(app.state.manager.db_path)
+        return {"ok": True, "cleared": cleared}
 
     return app
 

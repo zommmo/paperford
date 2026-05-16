@@ -72,3 +72,10 @@ def set_many(db_path: str, rows: List[Dict]) -> None:
                 """,
                 values,
             )
+
+
+def clear_cache(db_path: str) -> int:
+    with closing(sqlite3.connect(db_path)) as conn:
+        with conn:
+            cursor = conn.execute("DELETE FROM translations")
+            return cursor.rowcount
