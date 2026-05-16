@@ -37,6 +37,8 @@ def empty_job_state() -> dict:
         "miss_count": 0,
         "output_bytes": None,
         "custom_prompt": "",
+        "glossary": "",
+        "recent_context": [],
         "prompt_hash": "",
         "target_language": config.DEFAULT_TARGET_LANGUAGE,
     }
@@ -62,8 +64,9 @@ def apply_cache_keys(
     model: str,
     params_json: str,
     custom_prompt: str,
+    glossary: str,
 ) -> tuple[list[dict], str]:
-    prompt_hash = make_prompt_hash(custom_prompt)
+    prompt_hash = make_prompt_hash(custom_prompt, glossary)
     keyed_blocks = []
     for block in blocks:
         keyed = dict(block)
@@ -88,13 +91,14 @@ def create_job_from_blocks(
     concurrency: int,
     base_url: str,
     custom_prompt: str,
+    glossary: str,
     db_path: str,
     target_language: str = config.DEFAULT_TARGET_LANGUAGE,
     now: float | None = None,
 ) -> dict:
     start_ts = time.time() if now is None else now
     params_json = build_params_json(temperature, target_language)
-    keyed_blocks, prompt_hash = apply_cache_keys(blocks, model, params_json, custom_prompt)
+    keyed_blocks, prompt_hash = apply_cache_keys(blocks, model, params_json, custom_prompt, glossary)
 
     cache_hits = bulk_get(db_path, [block["cache_key"] for block in keyed_blocks])
     results_map = {}
@@ -132,6 +136,8 @@ def create_job_from_blocks(
         "miss_count": len(pending_blocks),
         "output_bytes": None,
         "custom_prompt": custom_prompt,
+        "glossary": glossary,
+        "recent_context": [],
         "prompt_hash": prompt_hash,
         "target_language": target_language or config.DEFAULT_TARGET_LANGUAGE,
     }
@@ -146,6 +152,7 @@ def create_translation_job(
     concurrency: int,
     base_url: str,
     custom_prompt: str,
+    glossary: str,
     max_blocks: int,
     db_path: str,
     target_language: str = config.DEFAULT_TARGET_LANGUAGE,
@@ -168,6 +175,7 @@ def create_translation_job(
         concurrency,
         base_url,
         custom_prompt,
+        glossary,
         db_path,
         target_language,
     )
@@ -239,9 +247,22 @@ async def process_next_batch(
         concurrency,
         job.get("custom_prompt") or "",
         job.get("target_language") or config.DEFAULT_TARGET_LANGUAGE,
+        job.get("glossary") or "",
+        job.get("recent_context") or [],
     )
     job["results_map"].update(fresh_results)
     job["failures"].extend(_attach_failed_blocks(batch_failures, batch))
+
+    # Update sliding window context
+    if fresh_results:
+        recent = job.get("recent_context") or []
+        for block in batch:
+            if block["block_id"] in fresh_results:
+                recent.append({
+                    "original": block["text"],
+                    "translation": fresh_results[block["block_id"]]
+                })
+        job["recent_context"] = recent[-5:]  # Keep last 5
 
     now_ts = int(time.time())
     rows = []

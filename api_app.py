@@ -95,6 +95,7 @@ def create_app(manager: SingleJobManager | None = None) -> FastAPI:
         batch_size: int = Form(config.BATCH_SIZE),
         concurrency: int = Form(config.CONCURRENCY),
         custom_prompt: str = Form(""),
+        glossary: str = Form(""),
         target_language: str = Form(config.DEFAULT_TARGET_LANGUAGE),
         max_blocks: int = Form(0),
     ) -> dict:
@@ -110,6 +111,7 @@ def create_app(manager: SingleJobManager | None = None) -> FastAPI:
                 batch_size=batch_size,
                 concurrency=concurrency,
                 custom_prompt=custom_prompt,
+                glossary=glossary,
                 target_language=target_language,
                 max_blocks=max_blocks,
             )

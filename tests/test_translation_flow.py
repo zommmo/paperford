@@ -28,9 +28,10 @@ class TranslationFlowTests(unittest.TestCase):
                 temperature=0.0,
                 batch_size=1,
                 concurrency=1,
-                base_url="https://api.example.com/v1",
-                custom_prompt="literal",
-                max_blocks=0,
+            base_url="https://api.example.com/v1",
+            custom_prompt="literal",
+            glossary="",
+            max_blocks=0,
                 db_path=db_path,
                 target_language="Chinese",
             )
@@ -46,6 +47,8 @@ class TranslationFlowTests(unittest.TestCase):
                 concurrency,
                 prompt,
                 target_language,
+                glossary,
+                context,
             ):
                 self.assertEqual(api_key, "key")
                 self.assertEqual(base_url, "https://api.example.com/v1")

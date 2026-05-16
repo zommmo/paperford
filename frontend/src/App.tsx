@@ -103,6 +103,8 @@ const text = {
     maxBlocks: "最大块",
     stylePrompt: "风格提示",
     promptPlaceholder: "例如：译文温柔、克制，保留文学节奏。",
+    glossary: "全局术语表",
+    glossaryPlaceholder: "例如：\nAlice=爱丽丝\nKing's Landing=君临城",
     debug: "调试与连接详情",
     noConnection: "暂无连接测试结果",
     clearCache: "清除翻译缓存",
@@ -190,6 +192,8 @@ const text = {
     maxBlocks: "Max Blocks",
     stylePrompt: "Style Prompt",
     promptPlaceholder: "Example: warm, restrained prose with literary cadence.",
+    glossary: "Glossary",
+    glossaryPlaceholder: "Example:\nAlice=Alice\nKing's Landing=King's Landing",
     debug: "Debug & Connection Details",
     noConnection: "No connection test result yet",
     clearCache: "Clear Translation Cache",
@@ -299,6 +303,7 @@ function App() {
   const [concurrency, setConcurrency] = useState("4");
   const [maxBlocks, setMaxBlocks] = useState("0");
   const [customPrompt, setCustomPrompt] = useState("");
+  const [glossary, setGlossary] = useState("");
   const [connection, setConnection] = useState<Record<string, unknown> | null>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -495,6 +500,7 @@ function App() {
     formData.append("batch_size", String(parsedBatchSize));
     formData.append("concurrency", String(parsedConcurrency));
     formData.append("custom_prompt", customPrompt);
+    formData.append("glossary", glossary);
     formData.append("target_language", finalTargetLanguage);
     formData.append("max_blocks", String(parsedMaxBlocks));
     try {
@@ -704,7 +710,10 @@ function App() {
             <label>{copy.maxBlocks}<input type="number" min="0" value={maxBlocks} onChange={(event) => setMaxBlocks(event.target.value)} /></label>
           </div>
           <label>{copy.stylePrompt}
-            <textarea rows={5} value={customPrompt} onChange={(event) => setCustomPrompt(event.target.value)} placeholder={copy.promptPlaceholder} />
+            <textarea rows={3} value={customPrompt} onChange={(event) => setCustomPrompt(event.target.value)} placeholder={copy.promptPlaceholder} />
+          </label>
+          <label>{copy.glossary}
+            <textarea rows={4} value={glossary} onChange={(event) => setGlossary(event.target.value)} placeholder={copy.glossaryPlaceholder} />
           </label>
           <details className="custom-provider">
             <summary>{copy.addProvider}</summary>

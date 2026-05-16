@@ -204,6 +204,8 @@ async def translate_batches(
     concurrency: int,
     custom_prompt: str = "",
     target_language: str = config.DEFAULT_TARGET_LANGUAGE,
+    glossary: str = "",
+    context: list[dict] | None = None,
 ) -> Tuple[Dict[str, str], List[dict]]:
     """
     批量翻译：返回成功映射与失败列表。
@@ -228,9 +230,17 @@ async def translate_batches(
             user_payload = [{"id": b["block_id"], "text": b["text"]} for b in batch]
             # 系统提示必须固定，用户提示只做风格说明，避免 JSON 约束被覆盖导致解析崩溃
             user_content_prefix = ""
+            glossary_prompt = (glossary or "").strip()
+            if glossary_prompt:
+                user_content_prefix += f"参考全局术语表，严格遵循以下译名翻译：\n{glossary_prompt}\n\n"
             style_prompt = (custom_prompt or "").strip()
             if style_prompt:
-                user_content_prefix = f"翻译风格要求：{style_prompt}\n\n"
+                user_content_prefix += f"翻译风格要求：{style_prompt}\n\n"
+            if context:
+                user_content_prefix += "以下是上文参考语境（仅供消歧和语气参考，请勿翻译这部分）：\n"
+                for ctx in context:
+                    user_content_prefix += f"原文：{ctx['original']}\n译文：{ctx['translation']}\n"
+                user_content_prefix += "\n请翻译以下内容：\n"
             messages = [
                 {"role": "system", "content": config.build_system_prompt(target_language)},
                 {

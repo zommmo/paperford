@@ -23,9 +23,9 @@ def init_db(db_path: str) -> None:
             )
 
 
-def make_prompt_hash(custom_prompt: str) -> str:
+def make_prompt_hash(custom_prompt: str, glossary: str = "") -> str:
     # 无论是否为空都返回固定 hash，保证缓存键稳定可复现
-    normalized = (custom_prompt or "").strip()
+    normalized = f"{custom_prompt or ''}|{glossary or ''}".strip()
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 

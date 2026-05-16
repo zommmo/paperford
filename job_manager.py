@@ -14,7 +14,7 @@ from translator import translate_batches
 
 
 TranslateFunc = Callable[
-    [list[dict], str, str, str, float, int, int, str, str],
+    [list[dict], str, str, str, float, int, int, str, str, str, list[dict]],
     Awaitable[tuple[dict[str, str], list[dict]]],
 ]
 
@@ -76,6 +76,7 @@ class SingleJobManager:
         batch_size: int,
         concurrency: int,
         custom_prompt: str,
+        glossary: str,
         target_language: str,
         max_blocks: int,
     ) -> dict:
@@ -92,6 +93,7 @@ class SingleJobManager:
             concurrency=concurrency,
             base_url=base_url,
             custom_prompt=custom_prompt,
+            glossary=glossary,
             max_blocks=max_blocks,
             db_path=self.db_path,
             target_language=target_language,

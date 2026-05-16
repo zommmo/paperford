@@ -56,6 +56,7 @@ class TranslationJobTests(unittest.TestCase):
                 1,
                 "https://api.example.com/v1",
                 "",
+                "",
                 db_path,
                 now=10,
             )
@@ -74,6 +75,7 @@ class TranslationJobTests(unittest.TestCase):
                 1,
                 1,
                 "https://api.example.com/v1",
+                "",
                 "",
                 db_path,
                 now=20,
@@ -103,6 +105,7 @@ class TranslationJobTests(unittest.TestCase):
                 1,
                 "https://api.example.com/v1",
                 "literal",
+                "",
                 db_path,
                 now=10,
             )
@@ -118,6 +121,8 @@ class TranslationJobTests(unittest.TestCase):
                 concurrency,
                 prompt,
                 target_language,
+                glossary,
+                context,
             ):
                 self.assertEqual(api_key, "key")
                 self.assertEqual(base_url, "https://api.example.com/v1")
@@ -152,6 +157,7 @@ class TranslationJobTests(unittest.TestCase):
                 1,
                 1,
                 "https://api.example.com/v1",
+                "",
                 "",
                 db_path,
                 now=10,
