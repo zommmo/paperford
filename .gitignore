@@ -12,3 +12,4 @@ frontend/.vite/
 frontend/*.tsbuildinfo
 .idea/
 .streamlit/
+AGENTS.md
