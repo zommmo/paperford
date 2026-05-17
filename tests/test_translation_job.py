@@ -153,6 +153,54 @@ class TranslationJobTests(unittest.TestCase):
             self.assertEqual(job_counts(job)["placeholders"], 0)
             self.assertEqual(bulk_get(db_path, [cache_key]), {cache_key: "你好"})
 
+    def test_process_next_batch_uses_batch_size_times_concurrency_window(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "translations.sqlite3")
+            init_db(db_path)
+            blocks = [
+                _block(f"chapter.xhtml::p::{index}", f"Hello {index}", f"hash-{index}")
+                for index in range(6)
+            ]
+            job = create_job_from_blocks(
+                blocks,
+                b"epub",
+                "book.epub",
+                "model-a",
+                0.7,
+                2,
+                3,
+                "https://api.example.com/v1",
+                "",
+                "",
+                db_path,
+                now=10,
+            )
+
+            async def fake_translate(
+                batch,
+                api_key,
+                base_url,
+                model,
+                temperature,
+                batch_size,
+                concurrency,
+                prompt,
+                target_language,
+                glossary,
+                context,
+                thinking_enabled,
+            ):
+                self.assertEqual(batch_size, 2)
+                self.assertEqual(concurrency, 3)
+                self.assertEqual(len(batch), 6)
+                return {block["block_id"]: f"译文：{block['text']}" for block in batch}, []
+
+            asyncio.run(process_next_batch(job, "key", db_path, fake_translate))
+
+            self.assertEqual(job["status"], "done")
+            self.assertEqual(job["processed_blocks"], 6)
+            self.assertEqual(job["pending_blocks"], [])
+
     def test_failed_batch_can_be_requeued_for_retry(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = str(Path(tmpdir) / "translations.sqlite3")

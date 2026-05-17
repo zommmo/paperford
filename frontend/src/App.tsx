@@ -84,6 +84,7 @@ const text = {
     bilingualEpub: "双语 EPUB",
     failures: "失败段落",
     retryFailures: "重试失败段落",
+    retryFailuresWaitHint: "需等待当前任务完成后再重试失败段落。",
     preview: "Preview",
     previewTitle: "解析预览",
     blockUnit: "个文本块",
@@ -179,6 +180,7 @@ const text = {
     bilingualEpub: "bilingual EPUB",
     failures: "Failed Blocks",
     retryFailures: "Retry Failed Blocks",
+    retryFailuresWaitHint: "Wait for the current job to finish before retrying failed blocks.",
     preview: "Preview",
     previewTitle: "Parsed Preview",
     blockUnit: "text blocks",
@@ -382,6 +384,7 @@ function App() {
     .replace("{total}", String(job.counts.total))
     .replace("{pending}", String(job.pending_blocks))
     .replace("{progress}", String(job.progress));
+  const canRetryFailures = job.status === "done" && job.failures.length > 0;
 
   async function refreshJob() {
     const data = await jsonRequest<JobStatus>("/api/jobs/current");
@@ -676,8 +679,16 @@ function App() {
               <div className="failures">
                 <div className="row">
                   <strong>{copy.failures}</strong>
-                  <button className="secondary" onClick={() => postJobAction("/api/jobs/current/retry-failures")}>{copy.retryFailures}</button>
+                  <button
+                    className="secondary"
+                    disabled={!canRetryFailures}
+                    title={!canRetryFailures ? copy.retryFailuresWaitHint : ""}
+                    onClick={() => postJobAction("/api/jobs/current/retry-failures")}
+                  >
+                    {copy.retryFailures}
+                  </button>
                 </div>
+                {!canRetryFailures && <p className="failure-hint">{copy.retryFailuresWaitHint}</p>}
                 {job.failures.map((failure) => (
                   <p key={failure.id}><b>{failure.id}</b> {failure.reason}</p>
                 ))}

@@ -134,6 +134,12 @@ h2 { font-size: 28px; line-height: 1.1; }
 }
 .download { margin-top: 22px; width: 100%; background: var(--moss); border-color: var(--moss); }
 .failures { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 16px; color: #703f24; }
+.failure-hint {
+  margin: 10px 0 14px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
 
 .preview-list { display: grid; gap: 12px; }
 .preview-list article { border-left: 3px solid var(--moss); background: rgba(235, 224, 207, 0.42); padding: 12px 14px; }

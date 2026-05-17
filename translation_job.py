@@ -242,7 +242,8 @@ async def process_next_batch(
     concurrency = int(job.get("concurrency") or 1)
     model = job.get("model") or config.MODEL
     base_url = job.get("base_url") or config.BASE_URL
-    batch = job["pending_blocks"][:batch_size]
+    window_size = max(batch_size * max(concurrency, 1), batch_size)
+    batch = job["pending_blocks"][:window_size]
 
     fresh_results, batch_failures = await translate_func(
         batch,
