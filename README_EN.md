@@ -63,19 +63,39 @@ make run
 1. Enter your API key in the settings panel.
 2. Choose a provider, or add a temporary custom provider with a name and Base URL.
 3. Enter a model name or fetch the available model list.
-4. Adjust target language, temperature, batch size, concurrency, max block count, and translation style.
-5. Upload an EPUB and optionally parse a preview first.
-6. Start translation and download the bilingual EPUB when the job is complete.
-7. Clear the translation cache from the debug section when you want to force fresh translations.
+4. Upload an EPUB and optionally parse a preview first.
+5. Optionally click auto-extract terms to ask the model for suggested names of characters, locations, factions, and proper nouns.
+6. Adjust target language, temperature, batch size, concurrency, max block count, style prompt, and glossary.
+7. Start translation and download the bilingual EPUB when the job is complete.
+8. Clear the translation cache from the debug section when you want to force fresh translations.
 
 Security note: a custom Provider Base URL receives the API key you enter. Only use trusted LLM providers or proxy endpoints you control.
+
+## Automatic Glossary Extraction
+
+Auto-extract terms does not send the entire book to the model. It samples roughly the first `15000` characters of the source text, then asks the model to identify main characters, important locations, factions, and other proper nouns. The result is written into the global glossary as `source=translation` pairs.
+
+This design balances quality, speed, and cost:
+
+- It avoids context window overflow. A full EPUB novel can contain hundreds of thousands of words and may exceed model token limits.
+- It keeps the request fast and inexpensive, so the UI does not wait on a large whole-book analysis.
+- It uses the opening-section effect. Most novels introduce core people, places, and factions in the first chapters, so the first `15000` characters usually provide a useful starting glossary.
+
+If an important character or location appears much later, auto-extraction may miss it. You can manually add entries in the glossary box:
+
+```text
+LateHero=Late Hero
+Silver City=Silver City
+```
+
+During translation, Paperford sends the global glossary with each text batch and asks the model to follow those names consistently. Glossary content is also included in the cache key, so changing the glossary creates separate cache entries instead of reusing older translations.
 
 ## Output and Cache
 
 - Generated files are written to `output/` and are also available through the download button.
 - The translation cache is stored in `translations.sqlite3`.
-- Cache keys include text hash, model, prompt version, target language, parameters, and custom style prompt hash.
-- Changing the model, target language, temperature, or style prompt creates separate cache entries.
+- Cache keys include text hash, model, prompt version, target language, parameters, custom style prompt hash, and glossary hash.
+- Changing the model, target language, temperature, style prompt, or glossary creates separate cache entries.
 
 ## Development
 
