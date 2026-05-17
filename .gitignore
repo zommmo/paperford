@@ -8,6 +8,7 @@ output/
 .env
 frontend/node_modules/
 frontend/dist/
+frontend/.vite/
 frontend/*.tsbuildinfo
 .idea/
 .streamlit/

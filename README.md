@@ -1,5 +1,7 @@
 # 纸渡 (Paperford)
 
+[English README](README_EN.md)
+
 一个本地运行的 FastAPI + React Web 应用，用于把 EPUB 电子书翻译成行间双语版本。
 
 工作流程：
